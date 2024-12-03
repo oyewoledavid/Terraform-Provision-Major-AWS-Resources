@@ -1,5 +1,5 @@
 ## TERRAFORM
-This repository contains Terraform code for managing infrastructure resources such as vpc,private and public subnets, internet gateway, route tables, NAT Gateway, Elastic IP, EC2 instances and a Elastic Load Balancer (ELB). This resources are provisioned to work together in such a way that the ELB distribute traffics into the two private EC2 instances where our webapp will be hosted.
+This repository contains Terraform code for managing infrastructure resources such as vpc,private and public subnets, internet gateway, route tables, NAT Gateway, Elastic IP, EC2 instances and a Elastic Load Balancer (ELB). This resources are provisioned to work together in such a way that the ELB distribute traffics into the two private EC2 instances where our webapp will be hosted. I modularize this terraform codes for reusabily, security and simplicity
 
 ### Prerequisites
 Before using this code, make sure you have the following prerequisites installed:

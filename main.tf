@@ -1,219 +1,176 @@
+//CREATE VPC
+module "aws_vpc" {
+  source = "./modules/vpc_modules"
+  vpc_cidr_block = var.vpc_cidr_block
+}
 
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "5.53.0"
+//CREATE SUBNETS
+module "aws_subnets" {
+  vpc_id = module.aws_vpc.vpc_id
+  source = "./modules/subnets_modules"
+  subnet_cidrs = var.subnet_cidrs
+  availability_zones = var.availability_zones
+}
+
+//CREATE INTERNET GATEWAY
+module "aws_internet_gateway" {
+  source = "./modules/internet_gateway_modules"
+  vpc_id = module.aws_vpc.vpc_id
+}
+
+//CREATE ROUTE TABLES
+module "route_tables" {
+  source              = "./modules/route_table_module"
+  vpc_id              = module.aws_vpc.vpc_id
+  internet_gateway_id = module.aws_internet_gateway.aws_internet_gateway_id
+  nat_gateway_id      = var.nat_gateway_id
+  destination_cidr_block = var.destination_cidr_block
+  route_table_config  = {
+    public_rt_1 = {
+      name      = "Public-RT-1"
+      is_public = true
+    }
+    public_rt_2 = {
+      name      = "Public-RT-2"
+      is_public = true
+    }
+    private_rt = {
+      name      = "Private-RT"
+      is_public = false
     }
   }
-
 }
 
-provider "aws" {
-  region = "us-east-1"
-}
-// CREATE VPC
-resource "aws_vpc" "main-vpc" {
-  cidr_block = "12.0.0.0/16"
+// ASSOCIATE ROUTE TABLES WITH SUBNETS
 
-  tags = {
-    Name = "main-vpc"
+# Route table associations for public subnets
+resource "aws_route_table_association" "public" {
+  for_each = {
+    public_rt_1 = module.aws_subnets.subnet_ids[0]
+    public_rt_2 = module.aws_subnets.subnet_ids[1]
   }
-}
-//CREATE PUBLIC SUBNET 1
-resource "aws_subnet" "main-subnet-public-1a" {
-  vpc_id            = aws_vpc.main-vpc.id
-  cidr_block        = "12.0.1.0/24"
-  availability_zone = "us-east-1a"
 
-  tags = {
-    Name = "public-subnet-1a"
-  }
+  subnet_id      = each.value
+  route_table_id = module.route_tables.route_table_ids[each.key]
 }
-//CREATE PUBLIC SUBNET 2
-resource "aws_subnet" "main-subnet-public-1b" {
-  vpc_id            = aws_vpc.main-vpc.id
-  cidr_block        = "12.0.2.0/24"
-  availability_zone = "us-east-1b"
 
-  tags = {
-    Name = "public-subnet-1b"
+# Route table association for private subnet
+resource "aws_route_table_association" "private" {
+  subnet_id      = module.aws_subnets.subnet_ids[2]
+  route_table_id = module.route_tables.route_table_ids["private_rt"]
+}
+
+// CREATE ELASTIC IP
+module "aws_eip" {
+  source = "./modules/eip_module"
+}
+
+// CREATE NAT GATEWAY
+module "aws_nat_gateway" {
+  source = "./modules/nat_gateway_modules"
+  subnet_ids = [module.aws_subnets.subnet_ids[0]]
+  eip_ids = module.aws_eip.eip_id
   
-  }
 }
-//CREATE PRIVATE SUBNET
-resource "aws_subnet" "main-subnet-private-1a" {
-  vpc_id            = aws_vpc.main-vpc.id
-  cidr_block        = "12.0.3.0/24"
-  availability_zone = "us-east-1a"
+resource "aws_route" "public_route" {
+  for_each = { for key, value in var.route_table_config : key => value if value.is_public }
+  route_table_id         = module.route_tables.route_table_ids[each.key]
+  destination_cidr_block = "0.0.0.0/0"
+  gateway_id             = var.internet_gateway_id
+}
 
-  tags = {
-    Name = "private-subnet-1a"
-  }
+resource "aws_route" "private_route" {
+  for_each = { for key, value in var.route_table_config : key => value if !value.is_public }
+  route_table_id         = module.route_tables.route_table_ids[each.key]
+  destination_cidr_block = var.destination_cidr_block
+  nat_gateway_id         = var.nat_gateway_id
 }
-//CREATE INTERNET GATEWAY
-resource "aws_internet_gateway" "main-igw" {
-  vpc_id = aws_vpc.main-vpc.id
-tags = {
-  Name = "main-igw"
+
+
+// CREATE SECURITY GROUP
+module "aws_security_group" {
+  source = "./modules/security_group_modules"
+  vpc_id = module.aws_vpc.vpc_id
 }
-}
-//ATTACH INTERNET GATEWAY TO VPC
-# resource "aws_internet_gateway_attachment" "main-igw-attachment" {
-#   vpc_id              = aws_vpc.main-vpc.id
-#   internet_gateway_id = aws_internet_gateway.main-igw.id
-#   lifecycle {
-#     ignore_changes = all
+# //CREATE PUBLIC EC2 INSTANCE
+# resource "aws_instance" "public-ec2-1a" {
+#   ami                    = var.ami
+#   instance_type          = "t2.micro"
+#   subnet_id              = aws_subnet.main-subnet-public-1a.id
+#   key_name               = var.key_name
+#   associate_public_ip_address = true
+#   vpc_security_group_ids = [aws_security_group.main-sg.id]
+
+#   tags = {
+#     Name = "public-ec2-1a"
+#   }
+
+# }
+# //CREATE PRIVATE EC2 INSTANCES
+# resource "aws_instance" "private-ec2" {
+#   count = 2
+
+#   ami                    = var.ami
+#   instance_type          = "t2.micro"
+#   subnet_id              = aws_subnet.main-subnet-private-1a.id
+#   key_name               = var.key_name
+#   vpc_security_group_ids = [aws_security_group.main-sg.id]
+#   tags = {
+#     Name = "private-ec2-${count.index}"
 #   }
 # }
-//CREATE ROUTE TABLES FOR PUBLIC SUBNETS
-resource "aws_route_table" "main-public-rt" {
-  vpc_id = aws_vpc.main-vpc.id
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.main-igw.id
-  }
-  tags = {
-    Name = "main-public-rt"
-  
-  }
-}
-resource "aws_route_table" "main-public2-rt" {
-  vpc_id = aws_vpc.main-vpc.id
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.main-igw.id
-  }
-  tags = {
-    Name = "main-public2-rt"
-  }
-}
-//ASSOCIATE PUBLIC ROUTE TABLES WITH PUBLIC SUBNETS
-resource "aws_route_table_association" "main-public-rt-association-1a" {
-  subnet_id      = aws_subnet.main-subnet-public-1a.id
-  route_table_id = aws_route_table.main-public-rt.id
-}
-resource "aws_route_table_association" "main-public2-rt-association-1b" {
-  subnet_id      = aws_subnet.main-subnet-public-1b.id
-  route_table_id = aws_route_table.main-public2-rt.id
+# output "private-ec2" {
+#   value = aws_instance.private-ec2[*]
+# }
+# //CREATE SECURITY GROUP
+# resource "aws_security_group" "main-sg" {
+#   vpc_id = aws_vpc.main-vpc.id
+#   ingress {
+#     from_port   = 22
+#     to_port     = 22
+#     protocol    = "tcp"
+#     cidr_blocks = ["0.0.0.0/0"]
+#   }
+#   ingress {
+#     from_port   = 80
+#     to_port     = 80
+#     protocol    = "tcp"
+#     cidr_blocks = ["0.0.0.0/0"]
+#   }
+#   egress {
+#     from_port   = 0
+#     to_port     = 0
+#     protocol    = "-1"
+#     cidr_blocks = ["0.0.0.0/0"]
+#   }
+# }
+# //CREATE ELASTIC LOAD BALANCER
+# resource "aws_elb" "main-elb" {
+#   name               = "main-elb"
+#   subnets            = [aws_subnet.main-subnet-public-1a.id, aws_subnet.main-subnet-public-1b.id]
+#   listener {
+#     instance_port     = 80
+#     instance_protocol = "HTTP"
+#     lb_port           = 80
+#     lb_protocol       = "HTTP"
+#   }
+#   instances = aws_instance.private-ec2[*].id
+#   security_groups = [aws_security_group.main-sg.id]
+#   cross_zone_load_balancing = true
+#   idle_timeout = 400
+#   connection_draining = true
 
-}
-//CREATE PRIVATE ROUTE TABLE
-resource "aws_route_table" "main-private-rt" {
-  vpc_id = aws_vpc.main-vpc.id
-
-  tags = {
-    Name = "main-private-rt"
-  
-  }
-}
-//ASSOCIATE PRIVATE ROUTE TABLE WITH PRIVATE SUBNET
-resource "aws_route_table_association" "main-private-rt-association-1a" {
-  subnet_id      = aws_subnet.main-subnet-private-1a.id
-  route_table_id = aws_route_table.main-private-rt.id
-
-}
-//CREATE NAT GATEWAY
-resource "aws_nat_gateway" "main-ngw-1a" {
-  subnet_id         = aws_subnet.main-subnet-public-1a.id
-  allocation_id     = aws_eip.main-eip-1a.id
-  connectivity_type = "public"
-  tags = {
-    Name = "main-ngw-1a"
-  }
-}
-//CREATE EIP
-resource "aws_eip" "main-eip-1a" {
-  domain   = "vpc"
-  tags = {
-    Name = "main-eip-1a"
-  }
-}
-//CREATE ROUTE FOR PRIVATE SUBNET TO NAT GATEWAY
-resource "aws_route" "private_nat_gateway" {
-  route_table_id         = aws_route_table.main-private-rt.id
-  destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.main-ngw-1a.id
-}
-//CREATE PUBLIC EC2 INSTANCE
-resource "aws_instance" "public-ec2-1a" {
-  ami                    = var.ami
-  instance_type          = "t2.micro"
-  subnet_id              = aws_subnet.main-subnet-public-1a.id
-  key_name               = var.key
-  associate_public_ip_address = true
-  vpc_security_group_ids = [aws_security_group.main-sg.id]
-
-  tags = {
-    Name = "public-ec2-1a"
-  }
-
-}
-//CREATE PRIVATE EC2 INSTANCES
-resource "aws_instance" "private-ec2" {
-  count = 2
-
-  ami                    = var.ami
-  instance_type          = "t2.micro"
-  subnet_id              = aws_subnet.main-subnet-private-1a.id
-  key_name               = var.key
-  vpc_security_group_ids = [aws_security_group.main-sg.id]
-  tags = {
-    Name = "private-ec2-${count.index}"
-  }
-}
-output "private-ec2" {
-  value = aws_instance.private-ec2[*]
-}
-//CREATE SECURITY GROUP
-resource "aws_security_group" "main-sg" {
-  vpc_id = aws_vpc.main-vpc.id
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-//CREATE ELASTIC LOAD BALANCER
-resource "aws_elb" "main-elb" {
-  name               = "main-elb"
-  subnets            = [aws_subnet.main-subnet-public-1a.id, aws_subnet.main-subnet-public-1b.id]
-  listener {
-    instance_port     = 80
-    instance_protocol = "HTTP"
-    lb_port           = 80
-    lb_protocol       = "HTTP"
-  }
-  instances = aws_instance.private-ec2[*].id
-  security_groups = [aws_security_group.main-sg.id]
-  cross_zone_load_balancing = true
-  idle_timeout = 400
-  connection_draining = true
-
-  health_check {
-    target              = "HTTP:80/"
-    interval            = 30
-    timeout             = 5
-    healthy_threshold   = 2
-    unhealthy_threshold = 2
-  }
-  tags = {
-    Name = "main-elb"
-  }
-}
-output "elb-dns" {
-  value = aws_elb.main-elb.dns_name
-}
+#   health_check {
+#     target              = "HTTP:80/"
+#     interval            = 30
+#     timeout             = 5
+#     healthy_threshold   = 2
+#     unhealthy_threshold = 2
+#   }
+#   tags = {
+#     Name = "main-elb"
+#   }
+# }
+# output "elb-dns" {
+#   value = aws_elb.main-elb.dns_name
+# }
