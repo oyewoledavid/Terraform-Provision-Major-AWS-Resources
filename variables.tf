@@ -17,15 +17,6 @@ variable "vpc_id" {
   
 }
 
-variable "public_subnet_ids" {
-  description = "List of public subnet IDs"
-  type        = list(string)
-}
-
-variable "private_subnet_id" {
-  description = "ID of the private subnet"
-  type        = string
-}
 
 variable "nat_gateway_id" {
   description = "The NAT Gateway ID for private route tables"
@@ -56,11 +47,11 @@ variable "destination_cidr_block" {
   
 }
 
-# variable "subnet_ids" {
-#   description = "List of subnet IDs"
-#   type        = list(string)
+variable "subnet_ids" {
+  description = "List of subnet IDs"
+  type        = list(string)
   
-# }
+}
 
 variable "ami" {
   type        = string
@@ -77,6 +68,17 @@ variable "key_name" {
 }
 variable "eip_ids" {
   description = "List of Elastic IP IDs"
+  type        = list(string)
+  
+}
+
+variable "security_group_ids" {
+  description = "List of security group IDs"
+  type        = list(string)
+  
+}
+variable "instances" {
+  description = "List of private instances"
   type        = list(string)
   
 }

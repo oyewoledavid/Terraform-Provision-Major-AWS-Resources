@@ -30,3 +30,27 @@ output "subnet_ids" {
 output "vpc_id" {
   value = module.aws_vpc.vpc_id
 }
+
+output "public_ec2_id" {
+  value = module.aws_ec2.public_ec2-id
+  
+}
+output "private_ec2_ids" {
+  value = module.aws_private_ec2.private_ec2-ids
+  
+}
+
+output "public_ec2_public_ip" {
+  value = module.aws_ec2.public_ec2-public_ip
+  
+}
+
+output "private_ec2_private_ips" {
+  value = module.aws_private_ec2.private_ec2-private_ips
+  
+}
+
+output "elb_dns" {
+  value = module.aws_elb.elb-dns_name
+  
+}

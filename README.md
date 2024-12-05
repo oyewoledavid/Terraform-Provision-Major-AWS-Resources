@@ -1,5 +1,29 @@
-## TERRAFORM
-This repository contains Terraform code for managing infrastructure resources such as vpc,private and public subnets, internet gateway, route tables, NAT Gateway, Elastic IP, EC2 instances and a Elastic Load Balancer (ELB). This resources are provisioned to work together in such a way that the ELB distribute traffics into the two private EC2 instances where our webapp will be hosted. I modularize this terraform codes for reusabily, security and simplicity
+# Repository Overview  
+This repository contains Terraform code for provisioning and managing AWS infrastructure resources, including:
+
+- VPC  
+- Private and Public Subnets  
+- Internet Gateway  
+- Route Tables  
+- NAT Gateway  
+- Elastic IP  
+- EC2 Instances  
+- Elastic Load Balancer (ELB)  
+
+The infrastructure is designed to work cohesively to support a web application hosted on two private EC2 instances. The Elastic Load Balancer (ELB) distributes incoming traffic evenly between these private EC2 instances, ensuring high availability and scalability.
+
+## Key Components and Roles  
+1. Internet Gateway: Provides internet access for the public subnet.  
+2. NAT Gateway: Facilitates outbound internet access for resources in the private subnet via the associated route table.  
+3. Elastic Load Balancer: Balances traffic across the private EC2 instances to ensure reliable application delivery.
+
+## Modular Design
+The Terraform codebase is modularized for:
+
+- Reusability: Modules can be reused across different environments or projects.  
+- Security: Sensitive configurations are abstracted and controlled via input variables.  
+- Simplicity: Modularization reduces complexity and improves code readability, making it easier to maintain and extend.  
+
 
 ### Prerequisites
 Before using this code, make sure you have the following prerequisites installed:
@@ -25,7 +49,7 @@ To get started with this code, follow these steps:
     terraform init
     ```
 
-4. Customize the variables in the `variable.tf` file according to your requirements.
+4. Customize the variables in the `variable.tf` and create a `terraform.tfvars` file according to your requirements.
 
 5. Review the Terraform plan:
     ```

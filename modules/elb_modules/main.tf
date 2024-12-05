@@ -1,15 +1,15 @@
 //CREATE ELASTIC LOAD BALANCER
 resource "aws_elb" "main-elb" {
   name               = "main-elb"
-  subnets            = [aws_subnet.main-subnet-public-1a.id, aws_subnet.main-subnet-public-1b.id]
+  subnets            = var.subnet_ids
   listener {
     instance_port     = 80
     instance_protocol = "HTTP"
     lb_port           = 80
     lb_protocol       = "HTTP"
   }
-  instances = aws_instance.private-ec2[*].id
-  security_groups = [aws_security_group.main-sg.id]
+  instances = var.instances
+  security_groups = var.security_group_ids
   cross_zone_load_balancing = true
   idle_timeout = 400
   connection_draining = true
